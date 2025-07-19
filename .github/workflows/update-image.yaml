@@ -1,14 +1,14 @@
-name: Update App Version
+name: Update Nginx App Version
 
 on:
   workflow_dispatch: # Allows manual trigger from GitHub UI
   push:
     branches:
-      - main # Or the branch your Argo CD app is watching
+      - main # Or the branch your Argo CD app 'simple-nginx-server' is watching
 
 jobs:
   update-and-deploy:
-    runs-on: self-hosted # THIS IS THE KEY! Runs on your local Windows machine
+    runs-on: self-hosted # THIS IS KEY: Runs on your local Windows machine
     steps:
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
@@ -17,26 +17,32 @@ jobs:
           ref: ${{ github.ref }}
           token: ${{ secrets.GH_PAT }} # For pushing changes back
 
-      - name: Set new image tag (example: using date/time for unique tag)
+      - name: Set new image tag
         id: set_tag
         run: |
+          # Generate a timestamp for a unique image tag
+          # In a real scenario, this would likely come from a build pipeline
+          # (e.g., from your application's CI building a new Docker image)
           $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-          echo "new_tag=gcr.io/google-samples/kubernetes-bootcamp/controllermanager:v$timestamp" >> $env:GITHUB_OUTPUT
-        shell: pwsh
+          echo "new_tag=nginx:$timestamp" >> $env:GITHUB_OUTPUT
+        shell: pwsh # Use PowerShell shell for Windows commands
 
       - name: Update deployment manifest with new image tag
         run: |
-          $deploymentFile = "kustomize-guestbook/guestbook-ui-deployment.yaml" # Adjust path if needed
-          $content = Get-Content $deploymentFile
-          $content -replace 'image: gcr.io/google-samples/kubernetes-bootcamp/controllermanager:v1', "image: ${{ steps.set_tag.outputs.new_tag }}" | Set-Content $deploymentFile
-        shell: pwsh
+          $deploymentFile = "nginx_yaml_files/deployment.yaml" # <--- IMPORTANT: Adjust this path if different
+          $currentImageRegex = 'image: nginx' # <--- IMPORTANT: This is the string we're looking to replace
+          $newImage = "image: ${{ steps.set_tag.outputs.new_tag }}"
+
+          # Read content, perform replacement, and write back
+          (Get-Content $deploymentFile) -replace $currentImageRegex, $newImage | Set-Content $deploymentFile
+        shell: pwsh # Use PowerShell shell for Windows commands
 
       - name: Commit and Push Changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add kustomize-guestbook/guestbook-ui-deployment.yaml # Adjust path
-          git commit -m "feat: Update guestbook image to ${{ steps.set_tag.outputs.new_tag }}"
+          git add nginx_yaml_files/deployment.yaml # <--- IMPORTANT: Adjust this path
+          git commit -m "feat: Update nginx image to ${{ steps.set_tag.outputs.new_tag }}"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
