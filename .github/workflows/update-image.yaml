@@ -13,6 +13,7 @@ jobs:
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
         with:
+          set-safe-directory: false
           repository: ${{ github.repository }}
           ref: ${{ github.ref }}
           token: ${{ secrets.GH_PAT }} # For pushing changes back
