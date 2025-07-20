@@ -1,21 +1,15 @@
 name: Update Nginx App Version
 
 on:
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+  workflow_dispatch: # Manual trigger
   push:
     branches:
-      - main # Or the branch your Argo CD app 'simple-nginx-server' is watching
-    # --- NEW: Prevent workflow from triggering on its own commits ---
+      - main
     paths:
-      - '**/*.yaml' # Only trigger if YAML files change (more specific than 'any push')
+      - '**/*.yaml'  # Trigger only on YAML changes
     exclude:
       branches:
         - main # Exclude the main branch for self-triggered pushes if needed
-    
-    # This is the most effective for bot commits:
-    # We will modify the workflow to push as 'github-actions[bot]' and then exclude that actor.
-    # Note: 'exclude' on 'push' event requires more complex logic or a separate workflow.
-    # The best practice is to include '[skip ci]' in the commit message.
 
 jobs:
   update-and-deploy:
@@ -23,76 +17,27 @@ jobs:
     defaults:
       run:
         shell: pwsh
-    
+
     steps:
       - name: Set custom workspace path
         id: init
         run: |
-          $customWorkspace = Join-Path "${{ runner.temp }}" "${{ github.run_id }}-workspace"
+          $workspaceRoot = "${{ github.workspace }}"
+          $customWorkspace = Join-Path $workspaceRoot "_isolated-${{ github.run_id }}"
           echo "CUSTOM_WORKSPACE=$customWorkspace" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      # --- NEW: Cleanup step (still good practice) ---
-      # - name: Clean Runner Workspace
-      - name: Prepare isolated workspace
+
+      - name: Clean custom workspace if exists
         run: |
           if (Test-Path $env:CUSTOM_WORKSPACE) {
             Remove-Item -Path $env:CUSTOM_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
           }
           New-Item -ItemType Directory -Path $env:CUSTOM_WORKSPACE | Out-Null
-          
-          <#
-          $workspace = "C:\actions-runner\_work\argocd-demo-repo\argocd-demo-repo"
-          $tempDir = "C:\actions-runner\_temp"
-          
-          Set-Location $tempDir
-          #>
-          
-
-          # Attempt to kill processes holding the workspace
-          <#
-          Get-Process | ForEach-Object {
-              try {
-                  if ($_.Path -like "$workspace\*" -or $_.CommandLine -like "*$workspace*") {
-                      Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-                  }
-              } catch {}
-          }
-          #>
-
-          # Optional: Take ownership and reset ACLs
-          <#
-          takeown /f $workspace /r /d y | Out-Null
-          $whoami = whoami
-          icacls $workspace /grant "${whoami}:(OI)(CI)F" /T | Out-Null
-          #>
-          
-          # Retry deletion
-          <#
-          $maxAttempts = 10
-          $attempt = 0
-          while ((Test-Path $workspace) -and ($attempt -lt $maxAttempts)) {
-              Write-Host "Attempting to remove workspace ($($attempt + 1)/$maxAttempts): $workspace"
-              Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
-              Start-Sleep -Seconds 3
-              $attempt++
-          }
-
-          if (Test-Path $workspace) {
-              Write-Error "Failed to remove workspace after $maxAttempts attempts: $workspace. Files might be locked."
-              exit 1
-          }
-          #>
-
-            
-            # Re-create the directory so actions/checkout has a place to clone into
-          #New-Item -ItemType Directory -Path $workspace | Out-Null
-          
-          # shell: pwsh
 
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
         with:
           path: ${{ env.CUSTOM_WORKSPACE }}
-          set-safe-directory: false # Your fix!
+          set-safe-directory: false
           repository: ${{ github.repository }}
           ref: ${{ github.ref }}
           token: ${{ secrets.GH_PAT }}
@@ -102,27 +47,30 @@ jobs:
         run: |
           $timestamp = Get-Date -Format "yyyyMMddHHmmss"
           echo "new_tag=nginx:$timestamp" >> $env:GITHUB_OUTPUT
-        shell: pwsh
 
       - name: Update deployment manifest with new image tag
         run: |
-          # $deploymentFile = "nginx_yaml_files/deployment.yaml" # Adjust path if needed
-          $deploymentFile = "$env:CUSTOM_WORKSPACE\nginx_yaml_files\deployment.yaml" # Adjust path if needed
-          $currentImageRegex = 'image: nginx:.*' # More robust regex to handle existing tags
+          $deploymentFile = Join-Path $env:CUSTOM_WORKSPACE "nginx_yaml_files\deployment.yaml"
+          $currentImageRegex = 'image: nginx:.*'
           $newImage = "image: ${{ steps.set_tag.outputs.new_tag }}"
 
-          # Use a regex replacement that matches 'nginx:' followed by any characters until end of line
           (Get-Content $deploymentFile) -replace $currentImageRegex, $newImage | Set-Content $deploymentFile
-        shell: pwsh
 
       - name: Commit and Push Changes
         run: |
+          cd $env:CUSTOM_WORKSPACE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # git add nginx_yaml_files/deployment.yaml
-          git add $env:CUSTOM_WORKSPACE\nginx_yaml_files\deployment.yaml
-          # --- NEW: Add [skip ci] to the commit message ---
+          git add nginx_yaml_files/deployment.yaml
           git commit -m "feat: Update nginx image to ${{ steps.set_tag.outputs.new_tag }} [skip ci]"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Clean up custom workspace (optional)
+        if: always()
+        run: |
+          if (Test-Path $env:CUSTOM_WORKSPACE) {
+            Remove-Item -Path $env:CUSTOM_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
