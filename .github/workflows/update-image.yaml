@@ -20,16 +20,33 @@ on:
 jobs:
   update-and-deploy:
     runs-on: self-hosted
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CUSTOM_WORKSPACE: ${{ runner.temp }}\${{ github.run_id }}-workspace
+    
     steps:
       # --- NEW: Cleanup step (still good practice) ---
-      - name: Clean Runner Workspace
+      # - name: Clean Runner Workspace
+      - name: Prepare isolated workspace
         run: |
+          if (Test-Path $env:CUSTOM_WORKSPACE) {
+            Remove-Item -Path $env:CUSTOM_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          
+          New-Item -ItemType Directory -Path $env:CUSTOM_WORKSPACE | Out-Null
+          
+          <#
           $workspace = "C:\actions-runner\_work\argocd-demo-repo\argocd-demo-repo"
           $tempDir = "C:\actions-runner\_temp"
-
+          
           Set-Location $tempDir
+          #>
+          
 
           # Attempt to kill processes holding the workspace
+          <#
           Get-Process | ForEach-Object {
               try {
                   if ($_.Path -like "$workspace\*" -or $_.CommandLine -like "*$workspace*") {
@@ -37,13 +54,17 @@ jobs:
                   }
               } catch {}
           }
+          #>
 
           # Optional: Take ownership and reset ACLs
+          <#
           takeown /f $workspace /r /d y | Out-Null
           $whoami = whoami
           icacls $workspace /grant "${whoami}:(OI)(CI)F" /T | Out-Null
-
+          #>
+          
           # Retry deletion
+          <#
           $maxAttempts = 10
           $attempt = 0
           while ((Test-Path $workspace) -and ($attempt -lt $maxAttempts)) {
@@ -57,16 +78,18 @@ jobs:
               Write-Error "Failed to remove workspace after $maxAttempts attempts: $workspace. Files might be locked."
               exit 1
           }
-          
+          #>
 
             
             # Re-create the directory so actions/checkout has a place to clone into
-          New-Item -ItemType Directory -Path $workspace | Out-Null
+          #New-Item -ItemType Directory -Path $workspace | Out-Null
+          
           shell: pwsh
 
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
         with:
+          path: ${{ env.CUSTOM_WORKSPACE }}
           set-safe-directory: false # Your fix!
           repository: ${{ github.repository }}
           ref: ${{ github.ref }}
@@ -81,7 +104,8 @@ jobs:
 
       - name: Update deployment manifest with new image tag
         run: |
-          $deploymentFile = "nginx_yaml_files/deployment.yaml" # Adjust path if needed
+          # $deploymentFile = "nginx_yaml_files/deployment.yaml" # Adjust path if needed
+          $deploymentFile = "$env:CUSTOM_WORKSPACE\nginx_yaml_files\deployment.yaml" # Adjust path if needed
           $currentImageRegex = 'image: nginx:.*' # More robust regex to handle existing tags
           $newImage = "image: ${{ steps.set_tag.outputs.new_tag }}"
 
@@ -93,7 +117,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add nginx_yaml_files/deployment.yaml
+          # git add nginx_yaml_files/deployment.yaml
+          git add $env:CUSTOM_WORKSPACE\nginx_yaml_files\deployment.yaml
           # --- NEW: Add [skip ci] to the commit message ---
           git commit -m "feat: Update nginx image to ${{ steps.set_tag.outputs.new_tag }} [skip ci]"
           git push
