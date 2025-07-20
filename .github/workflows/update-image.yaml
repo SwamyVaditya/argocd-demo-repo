@@ -24,25 +24,38 @@ jobs:
       # --- NEW: Cleanup step (still good practice) ---
       - name: Clean Runner Workspace
         run: |
-          $workspace = "${{ github.workspace }}"
-          
-          # Kill any child processes that may be holding files
-          Get-Process | Where-Object { $_.Path -like "$env:GITHUB_WORKSPACE*" } | Stop-Process -Force
+          $workspace = "${{ github.workspace }}" # C:\actions-runner\_work\<repo>\<repo>
+          $tempDir = "C:\actions-runner\_temp" # A known safe temp directory outside the workspace
+          # Ensure we are not in the workspace directory when trying to delete it
+          Set-Location $tempDir # Move to a temporary directory outside the workspace
+
+          # Kill any child processes that may be holding files within the workspace
+          # It's better to target processes that explicitly have the workspace path in their command line or working directory
+          Get-Process | Where-Object { 
+              ($_.Path -like "$workspace\*") -or `
+              ($_.CommandLine -like "*$workspace*") -or `
+              ($_.WorkingSet -ne 0 -and $_.MainModule.FileName -like "$workspace\*") 
+          } | Stop-Process -Force -ErrorAction SilentlyContinue
 
           $maxAttempts = 5
           $attempt = 0
-          while ((Test-Path $env:GITHUB_WORKSPACE) -and ($attempt -lt $maxAttempts)) {
-              Remove-Item -Path $env:GITHUB_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
-              Start-Sleep -Seconds 5
+            
+          # Use $workspace directly here, as Set-Location changed the current directory
+          while ((Test-Path $workspace) -and ($attempt -lt $maxAttempts)) {
+              Write-Host "Attempting to remove workspace ($($attempt + 1)/$maxAttempts): $workspace"
+              Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 3 # Shorter sleep
               $attempt++
           }
-          if (Test-Path $env:GITHUB_WORKSPACE) {
-              Write-Error "Failed to remove workspace after $maxAttempts attempts: $env:GITHUB_WORKSPACE. Files might be locked."
-              exit 1
+
+          if (Test-Path $workspace) {
+              Write-Error "Failed to remove workspace after $maxAttempts attempts: $workspace. Files might be locked."
+              exit 1 # Fail the job if we can't clean
           }
-    
+            
+            # Re-create the directory so actions/checkout has a place to clone into
           New-Item -ItemType Directory -Path $workspace | Out-Null
-        shell: pwsh
+          shell: pwsh
 
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
