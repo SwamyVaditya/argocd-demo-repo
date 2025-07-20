@@ -23,8 +23,6 @@ jobs:
     defaults:
       run:
         shell: pwsh
-    env:
-      CUSTOM_WORKSPACE: ${{ runner.temp }}\${{ github.run_id }}-workspace
     
     steps:
       - name: Set custom workspace path
