@@ -1,4 +1,4 @@
-name: Update Nginx App Version
+    name: Update Nginx App Version
 
 on:
   workflow_dispatch: # Allows manual trigger from GitHub UI
@@ -25,20 +25,22 @@ jobs:
       - name: Clean Runner Workspace
         run: |
           $workspace = "${{ github.workspace }}"
-          if (Test-Path $workspace) {
-              Write-Host "Attempting to remove existing workspace: $workspace"
-              Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
-              Start-Sleep -Seconds 3 # Shorter sleep after successful fix
-              if (Test-Path $workspace) {
-                  Write-Warning "Workspace still exists after initial cleanup. Trying again..."
-                  Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
-                  Start-Sleep -Seconds 3
-              }
-              if (Test-Path $workspace) {
-                  Write-Error "Failed to remove workspace: $workspace. Files might be locked."
-                  exit 1
-              }
+          
+          # Kill any child processes that may be holding files
+          Get-Process | Where-Object { $_.Path -like "$env:GITHUB_WORKSPACE*" } | Stop-Process -Force
+
+          $maxAttempts = 5
+          $attempt = 0
+          while ((Test-Path $env:GITHUB_WORKSPACE) -and ($attempt -lt $maxAttempts)) {
+              Remove-Item -Path $env:GITHUB_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 5
+              $attempt++
           }
+          if (Test-Path $env:GITHUB_WORKSPACE) {
+              Write-Error "Failed to remove workspace after $maxAttempts attempts: $env:GITHUB_WORKSPACE. Files might be locked."
+              exit 1
+          }
+    
           New-Item -ItemType Directory -Path $workspace | Out-Null
         shell: pwsh
 
