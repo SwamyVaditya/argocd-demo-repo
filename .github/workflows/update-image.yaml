@@ -27,6 +27,11 @@ jobs:
       CUSTOM_WORKSPACE: ${{ runner.temp }}\${{ github.run_id }}-workspace
     
     steps:
+      - name: Set custom workspace path
+        id: init
+        run: |
+          $customWorkspace = Join-Path "${{ runner.temp }}" "${{ github.run_id }}-workspace"
+          echo "CUSTOM_WORKSPACE=$customWorkspace" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       # --- NEW: Cleanup step (still good practice) ---
       # - name: Clean Runner Workspace
       - name: Prepare isolated workspace
@@ -34,7 +39,6 @@ jobs:
           if (Test-Path $env:CUSTOM_WORKSPACE) {
             Remove-Item -Path $env:CUSTOM_WORKSPACE -Recurse -Force -ErrorAction SilentlyContinue
           }
-          
           New-Item -ItemType Directory -Path $env:CUSTOM_WORKSPACE | Out-Null
           
           <#
