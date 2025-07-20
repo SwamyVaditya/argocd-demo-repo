@@ -24,34 +24,40 @@ jobs:
       # --- NEW: Cleanup step (still good practice) ---
       - name: Clean Runner Workspace
         run: |
-          $workspace = "${{ github.workspace }}" # C:\actions-runner\_work\<repo>\<repo>
-          $tempDir = "C:\actions-runner\_temp" # A known safe temp directory outside the workspace
-          # Ensure we are not in the workspace directory when trying to delete it
-          Set-Location $tempDir # Move to a temporary directory outside the workspace
+          $workspace = "C:\actions-runner\_work\argocd-demo-repo\argocd-demo-repo"
+            $tempDir = "C:\actions-runner\_temp"
 
-          # Kill any child processes that may be holding files within the workspace
-          # It's better to target processes that explicitly have the workspace path in their command line or working directory
-          Get-Process | Where-Object { 
-              ($_.Path -like "$workspace\*") -or `
-              ($_.CommandLine -like "*$workspace*") -or `
-              ($_.WorkingSet -ne 0 -and $_.MainModule.FileName -like "$workspace\*") 
-          } | Stop-Process -Force -ErrorAction SilentlyContinue
+            Set-Location $tempDir
 
-          $maxAttempts = 5
-          $attempt = 0
-            
-          # Use $workspace directly here, as Set-Location changed the current directory
-          while ((Test-Path $workspace) -and ($attempt -lt $maxAttempts)) {
-              Write-Host "Attempting to remove workspace ($($attempt + 1)/$maxAttempts): $workspace"
-              Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
-              Start-Sleep -Seconds 3 # Shorter sleep
-              $attempt++
-          }
+            # Attempt to kill processes holding the workspace
+            Get-Process | ForEach-Object {
+                try {
+                    if ($_.Path -like "$workspace\*" -or $_.CommandLine -like "*$workspace*") {
+                        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+                    }
+                } catch {}
+            }
 
-          if (Test-Path $workspace) {
-              Write-Error "Failed to remove workspace after $maxAttempts attempts: $workspace. Files might be locked."
-              exit 1 # Fail the job if we can't clean
-          }
+            # Optional: Take ownership and reset ACLs
+            takeown /f $workspace /r /d y | Out-Null
+            icacls $workspace /grant:r "$env:USERNAME:F" /T | Out-Null
+
+            # Retry deletion
+            $maxAttempts = 10
+            $attempt = 0
+            while ((Test-Path $workspace) -and ($attempt -lt $maxAttempts)) {
+                Write-Host "Attempting to remove workspace ($($attempt + 1)/$maxAttempts): $workspace"
+                Remove-Item -Path $workspace -Recurse -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+                $attempt++
+            }
+
+            if (Test-Path $workspace) {
+                Write-Error "Failed to remove workspace after $maxAttempts attempts: $workspace. Files might be locked."
+                exit 1
+            }
+          
+
             
             # Re-create the directory so actions/checkout has a place to clone into
           New-Item -ItemType Directory -Path $workspace | Out-Null
