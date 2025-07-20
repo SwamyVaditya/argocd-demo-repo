@@ -41,7 +41,7 @@ jobs:
           # Optional: Take ownership and reset ACLs
           takeown /f $workspace /r /d y | Out-Null
           $whoami = whoami
-          icacls $workspace /grant "$whoami:(OI)(CI)F" /T | Out-Null
+          icacls $workspace /grant "${whoami}:(OI)(CI)F" /T | Out-Null
 
           # Retry deletion
           $maxAttempts = 10
