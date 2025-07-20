@@ -86,7 +86,7 @@ jobs:
             # Re-create the directory so actions/checkout has a place to clone into
           #New-Item -ItemType Directory -Path $workspace | Out-Null
           
-          shell: pwsh
+          # shell: pwsh
 
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
