@@ -6,13 +6,13 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_USERNAME/argocd-demo-repo
+    repoURL: https://github.com/swamyvaditya/argocd-demo-repo
     targetRevision: main
-    path: k8s
+    path: k8s/sample-app
   destination:
     server: https://kubernetes.default.svc
     namespace: default
   syncPolicy:
     automated:
-      prune: true
       selfHeal: true
+      prune: true
