@@ -1,5 +1,0 @@
-# .github/workflows/update-image.yaml
-- name: Update Deployment YAML with New Image Tag
-  run: |
-    NEW_TAG=latest
-    yq e -i '.spec.template.spec.containers[0].image = "swamyvaditya/sample-app:" + strenv(NEW_TAG)' sample-app/manifests/deployment.yaml
