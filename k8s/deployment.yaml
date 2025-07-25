@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: sample-app
-          image: ghcr.io/swamyvaditya/sample-app:8154e0f
+          image: ghcr.io/swamyvaditya/sample-app:45214be
           ports:
             - containerPort: 3000
