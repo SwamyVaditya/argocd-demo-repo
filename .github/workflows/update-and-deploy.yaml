@@ -4,7 +4,8 @@ on:
   push:
     paths:
       - 'sample-app/**'
-      - '.github/workflows/update-image.yaml'
+      - "k8s/**"
+      - '.github/workflows/update-and-deploy.yaml'
     branches:
       - main
 
