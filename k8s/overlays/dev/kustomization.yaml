@@ -1,9 +1,11 @@
 resources:
-  - ../../base
+- ../../base
 
 patchesStrategicMerge:
-  - image-patch.yaml
-
-#images:
-#  - name: ghcr.io/swamyvaditya/sample-app
-#    newTag: latest
+- image-patch.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: ghcr.io/swamyvaditya/sample-app
+  newName: ghcr.io/swamyvaditya/sample-app
+  newTag: cb1fc28
