@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write      # for git commit & push
-      packages: write      # for pushing image to GHCR
-      deployments: write   # for ArgoCD deployment
-      
+      contents: write
+      packages: write
+      deployments: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,7 +48,8 @@ jobs:
       - name: Update image tag in Kustomize
         run: |
           cd k8s/overlays/dev
-          kustomize edit set image $REGISTRY/${{ env.IMAGE_NAME }}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+          kustomize edit set image ghcr.io/swamyvaditya/sample-app=ghcr.io/swamyvaditya/sample-app:${{ steps.vars.outputs.sha_short }}
+
 
       - name: Commit and push manifest changes
         env:
@@ -56,12 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git remote set-url origin https://x-access-token:${PUSH_PAT}@github.com/SwamyVaditya/argocd-demo-repo
+          git remote set-url origin https://x-access-token:${PUSH_PAT}@github.com/${{ github.repository }}
           git add k8s/overlays/dev/kustomization.yaml
           git commit -m "Update image tag to ${{ steps.vars.outputs.sha_short }}" || echo "No changes to commit"
           git push origin HEAD:main
-
-
-      #- name: Wait for rollout to complete
-      #  run: |
-      #    kubectl rollout status deployment/sample-app -n default --timeout=60s
