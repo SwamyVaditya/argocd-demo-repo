@@ -1,0 +1,9 @@
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - image-patch.yaml
+
+#images:
+#  - name: ghcr.io/swamyvaditya/sample-app
+#    newTag: latest
