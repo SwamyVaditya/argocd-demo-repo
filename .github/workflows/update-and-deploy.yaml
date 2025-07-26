@@ -17,6 +17,11 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write      # for git commit & push
+      packages: write      # for pushing image to GHCR
+      #deployments: write   # for ArgoCD deployment
+      
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
