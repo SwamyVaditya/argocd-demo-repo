@@ -7,4 +7,4 @@ resources:
 images:
 - name: ghcr.io/swamyvaditya/sample-app
   newName: ghcr.io/swamyvaditya/sample-app
-  newTag: cb1fc28
+  newTag: c1fe9e9
